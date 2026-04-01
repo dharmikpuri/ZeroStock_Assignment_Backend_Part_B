@@ -46,7 +46,63 @@ const getAllInventory = async (req, res) => {
   }
 };
 
+const getInventoryGroupedBySupplier = async (req, res) => {
+  try {
+    const result = await Inventory.aggregate([
+      // Join supplier data
+      {
+        $lookup: {
+          from: "suppliers",
+          localField: "supplier_id",
+          foreignField: "_id",
+          as: "supplier",
+        },
+      },
+      {
+        $unwind: "$supplier",
+      },
+
+      // Group by supplier
+      {
+        $group: {
+          _id: "$supplier._id",
+          supplier_name: { $first: "$supplier.name" },
+          total_value: {
+            $sum: {
+              $multiply: ["$quantity", "$price"],
+            },
+          },
+          items: {
+            $push: {
+              product_name: "$product_name",
+              quantity: "$quantity",
+              price: "$price",
+            },
+          },
+        },
+      },
+
+      // Sort by total value (DESC)
+      {
+        $sort: { total_value: -1 },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Aggregation Error:", error.message);
+
+    res.status(500).json({
+      message: "Failed to fetch aggregated data",
+    });
+  }
+};
+
 module.exports = {
   createInventory,
   getAllInventory,
+  getInventoryGroupedBySupplier
 };
